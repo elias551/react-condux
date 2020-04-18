@@ -9,10 +9,10 @@ export type DispatchableState<State> = State & {
   dispatch: DispatchAction<State>
 }
 
-export type UpdateAction<State, ReturnType = any> = (
-  produceState: ProduceStateAction<State>,
+export type UpdateAction<State, ReturnType = any> = (props: {
+  produceState: ProduceStateAction<State>
   getState: () => DispatchableState<State>
-) => Promise<ReturnType>
+}) => Promise<ReturnType>
 
 export type ProduceStateAction<State> = <ReturnType>(
   updateAction: (draft: State) => ReturnType
@@ -45,9 +45,14 @@ export const produceState = <State, ReturnType>(
 export const createDispatch = <State>(
   getState: () => DispatchableState<State>,
   setState: SetState<State>
-): DispatchAction<State> => {
-  return <ReturnType>(updateAction: UpdateAction<State, ReturnType>) =>
-    updateAction((u) => produceState(setState, u), getState)
+): DispatchAction<State> => <ReturnType>(
+  updateAction: UpdateAction<State, ReturnType>
+) => {
+  debugger
+  return updateAction({
+    produceState: (u) => produceState(setState, u),
+    getState,
+  })
 }
 
 const generateProvider = <State extends {}>(
@@ -94,5 +99,14 @@ export const buildContext = <State extends {}>(initialValue?: State) => {
     createAction: <ActionType extends (...args: any[]) => UpdateAction<State>>(
       callback: ActionType
     ): ActionType => callback,
+    createActions: <
+      ActionsType extends { [actionName in T]: ActionType },
+      ActionType extends (...args: any[]) => UpdateAction<State>,
+      T extends keyof ActionType
+    >(
+      actions: ActionsType
+    ): ActionsType => {
+      return actions
+    },
   }
 }
