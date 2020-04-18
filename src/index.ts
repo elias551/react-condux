@@ -42,29 +42,37 @@ export const produceState = <State, ReturnType>(
     }
   })
 
-export const createDispatch = <S>(
-  getState: () => DispatchableState<S>,
-  setState: SetState<S>
-): DispatchAction<S> => {
-  return <ReturnType>(updateAction: UpdateAction<S, ReturnType>) =>
+export const createDispatch = <State>(
+  getState: () => DispatchableState<State>,
+  setState: SetState<State>
+): DispatchAction<State> => {
+  return <ReturnType>(updateAction: UpdateAction<State, ReturnType>) =>
     updateAction((u) => produceState(setState, u), getState)
 }
 
-const generateProvider = <S extends {}>(
-  provider: React.Provider<DispatchableState<S>>,
-  staticInitialValue?: S
+const generateProvider = <State extends {}>(
+  provider: React.Provider<DispatchableState<State>>,
+  staticInitialValue?: State
 ) =>
   class ConduxProvider extends React.PureComponent<
     {
-      initialValue?: S
+      initialValue?: State
     },
-    DispatchableState<S>
+    DispatchableState<State>
   > {
-    constructor(props: { initialValue?: S }) {
+    constructor(props: { initialValue?: State }) {
       super(props)
 
+      const value = props.initialValue || staticInitialValue || ({} as State)
+
+      if ("dispatch" in value) {
+        throw new Error(
+          "The condux state cannot be defined with a property called dispatch"
+        )
+      }
+
       this.state = {
-        ...(props.initialValue || staticInitialValue || ({} as S)),
+        ...value,
         dispatch: createDispatch(() => this.state, this.setState.bind(this)),
       }
     }
@@ -77,14 +85,14 @@ const generateProvider = <S extends {}>(
     }
   }
 
-export function buildContext<S extends {}>(initialValue?: S) {
-  const Context = React.createContext({} as DispatchableState<S>)
+export const buildContext = <State extends {}>(initialValue?: State) => {
+  const Context = React.createContext({} as DispatchableState<State>)
 
   return {
     Provider: generateProvider(Context.Provider, initialValue),
     useContext: () => React.useContext(Context),
-    createAction: <T extends (...args: any[]) => UpdateAction<S>>(
-      callback: T
-    ): T => callback,
+    createAction: <ActionType extends (...args: any[]) => UpdateAction<State>>(
+      callback: ActionType
+    ): ActionType => callback,
   }
 }
