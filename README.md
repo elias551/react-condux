@@ -7,15 +7,16 @@ Yet another state manager for react, based on Context API.
 You can define your context and your actions this way:
 
 ```ts
+
 import { buildContext } from "react-condux"
 
 interface ContextState {
   currentValue: number
 }
 
-const { createAction, createActions, useContext, Provider } = buildContext<
-  ContextState
->()
+const { createActions, useContext, Provider } = buildContext<ContextState>({
+  useDebug: true,
+})
 
 export const useAppContext = useContext
 export const AppContextProvider = Provider

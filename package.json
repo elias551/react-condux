@@ -1,6 +1,6 @@
 {
   "name": "react-condux",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "State manager for react based on Context API",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
