@@ -23,11 +23,11 @@ export type SetState<State> = (
   callback: () => void
 ) => void
 
-export function produceState<State, ReturnType>(
+export const produceState = <State, ReturnType>(
   setState: SetState<State>,
   updateAction: (draft: State) => ReturnType
-): Promise<ReturnType> {
-  return new Promise<ReturnType>((resolve, reject) => {
+): Promise<ReturnType> =>
+  new Promise<ReturnType>((resolve, reject) => {
     try {
       let result: ReturnType = (undefined as any) as ReturnType
       setState(
@@ -41,7 +41,6 @@ export function produceState<State, ReturnType>(
       reject(e)
     }
   })
-}
 
 export const createDispatch = <S>(
   getState: () => DispatchableState<S>,
@@ -51,20 +50,25 @@ export const createDispatch = <S>(
     updateAction((u) => produceState(setState, u), getState)
 }
 
-const generateProvider = <S>(provider: React.Provider<DispatchableState<S>>) =>
-  class Provider extends React.PureComponent<
+const generateProvider = <S extends {}>(
+  provider: React.Provider<DispatchableState<S>>,
+  staticInitialValue?: S
+) =>
+  class ConduxProvider extends React.PureComponent<
     {
-      initialValue: S
+      initialValue?: S
     },
     DispatchableState<S>
   > {
-    constructor(props: { initialValue: S }) {
+    constructor(props: { initialValue?: S }) {
       super(props)
+
       this.state = {
-        ...props.initialValue,
+        ...(props.initialValue || staticInitialValue || ({} as S)),
         dispatch: createDispatch(() => this.state, this.setState.bind(this)),
       }
     }
+
     public render() {
       return React.createElement(provider, {
         value: this.state,
@@ -73,19 +77,14 @@ const generateProvider = <S>(provider: React.Provider<DispatchableState<S>>) =>
     }
   }
 
-export function buildContext<S>(initValue: S) {
-  const Context = React.createContext(initValue as DispatchableState<S>)
+export function buildContext<S extends {}>(initialValue?: S) {
+  const Context = React.createContext({} as DispatchableState<S>)
 
-  const _useContext = () => React.useContext(Context)
-
-  const createAction = <T extends (...args: any[]) => UpdateAction<S>>(
-    callback: T
-  ): T => {
-    return callback
-  }
   return {
-    Provider: generateProvider(Context.Provider),
-    useContext: _useContext,
-    createAction,
+    Provider: generateProvider(Context.Provider, initialValue),
+    useContext: () => React.useContext(Context),
+    createAction: <T extends (...args: any[]) => UpdateAction<S>>(
+      callback: T
+    ): T => callback,
   }
 }
