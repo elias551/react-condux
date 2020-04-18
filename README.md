@@ -7,29 +7,32 @@ Yet another state manager for react, based on Context API.
 You can define your context and your actions this way:
 
 ```ts
-
 import { buildContext } from "react-condux"
 
-const { createAction, useContext, Provider } = buildContext({ currentValue: 5 })
+interface ContextState {
+  currentValue: number
+}
+
+const { createAction, createActions, useContext, Provider } = buildContext<
+  ContextState
+>()
 
 export const useAppContext = useContext
 export const AppContextProvider = Provider
 
-export const setValueAction = createAction(
-  (value: number) => async (produceState, getState) => {
+export const actions = createActions({
+  setValue: (value: number) => async ({ produceState, getState }) => {
     const state = getState()
     await produceState((draft) => {
       draft.currentValue = state.currentValue + value
     })
-  }
-)
-
-export const incrementAction = createAction(() => async (_, getState) => {
-  await getState().dispatch(setValueAction(1))
-})
-
-export const decrementAction = createAction(() => async (_, getState) => {
-  await getState().dispatch(setValueAction(-1))
+  },
+  increment: () => async ({ getState }) => {
+    await getState().dispatch(actions.setValue(1))
+  },
+  decrement: () => async ({ getState }) => {
+    await getState().dispatch(actions.setValue(-1))
+  },
 })
 
 ```
@@ -41,32 +44,27 @@ Then your context can be used this way:
 import React from "react"
 
 import "./App.css"
-import {
-  AppContextProvider,
-  useAppContext,
-  incrementAction,
-  decrementAction,
-} from "./app-context/context"
+import { AppContextProvider, useAppContext, actions } from "./context"
 
 export const App = () => (
   <div className="App">
     <header className="App-header">
       <AppContextProvider initialValue={{ currentValue: 5 }}>
-        <Incrementor />
+        <ContextConsumer />
       </AppContextProvider>
     </header>
   </div>
 )
 
-export const Incrementor = () => {
-  const context = useAppContext()
+export const ContextConsumer = () => {
+  const { currentValue, dispatch } = useAppContext()
 
-  const increment = () => context.dispatch(incrementAction())
-  const decrement = () => context.dispatch(decrementAction())
+  const increment = () => dispatch(actions.increment())
+  const decrement = () => dispatch(actions.decrement())
 
   return (
     <div>
-      <p>Current value: {context.currentValue}</p>
+      <p>Current value: {currentValue}</p>
       <button onClick={increment}>Increment</button>
       <button onClick={decrement}>Decrement</button>
     </div>
