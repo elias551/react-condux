@@ -23,6 +23,11 @@ export type SetState<State> = (
   callback: () => void
 ) => void
 
+export interface ProviderOptions<State> {
+  initialValue?: State
+  useDebug?: boolean
+}
+
 export const produceState = <State, ReturnType>(
   setState: SetState<State>,
   updateAction: (draft: State) => ReturnType
@@ -45,19 +50,21 @@ export const produceState = <State, ReturnType>(
 export const createDispatch = <State>(
   getState: () => DispatchableState<State>,
   setState: SetState<State>
-): DispatchAction<State> => <ReturnType>(
-  updateAction: UpdateAction<State, ReturnType>
-) => {
-  debugger
-  return updateAction({
-    produceState: (u) => produceState(setState, u),
-    getState,
-  })
+): DispatchAction<State> => {
+  function dispatcher<ReturnType>(
+    updateAction: UpdateAction<State, ReturnType>
+  ) {
+    return updateAction({
+      produceState: (u) => produceState(setState, u),
+      getState,
+    })
+  }
+  return dispatcher as DispatchAction<State>
 }
 
 const generateProvider = <State extends {}>(
   provider: React.Provider<DispatchableState<State>>,
-  staticInitialValue?: State
+  options?: ProviderOptions<State>
 ) =>
   class ConduxProvider extends React.PureComponent<
     {
@@ -68,7 +75,7 @@ const generateProvider = <State extends {}>(
     constructor(props: { initialValue?: State }) {
       super(props)
 
-      const value = props.initialValue || staticInitialValue || ({} as State)
+      const value = props.initialValue || options?.initialValue || ({} as State)
 
       if ("dispatch" in value) {
         throw new Error(
@@ -82,6 +89,14 @@ const generateProvider = <State extends {}>(
       }
     }
 
+    componentDidUpdate() {
+      if (!options?.useDebug) {
+        return
+      }
+      const { dispatch, ...state } = this.state
+      console.log("condux new state:", state)
+    }
+
     public render() {
       return React.createElement(provider, {
         value: this.state,
@@ -90,23 +105,41 @@ const generateProvider = <State extends {}>(
     }
   }
 
-export const buildContext = <State extends {}>(initialValue?: State) => {
+export const buildContext = <State extends {}>(
+  options?: ProviderOptions<State>
+) => {
   const Context = React.createContext({} as DispatchableState<State>)
 
+  const createAction = <
+    ActionType extends (...args: any[]) => UpdateAction<State>
+  >(
+    callback: ActionType,
+    name: string = "unknownAction"
+  ): ActionType =>
+    ((...args) => {
+      if (options?.useDebug) {
+        console.log(`condux action: ${name}(${args.join(",")})`)
+      }
+      return callback(...args)
+    }) as ActionType
+
+  const createActions = <
+    ActionsType extends { [actionName: string]: ActionType },
+    ActionType extends (...args: any[]) => UpdateAction<State>,
+    T extends keyof ActionsType
+  >(
+    actions: ActionsType
+  ): ActionsType => {
+    for (let key of Object.keys(actions) as T[]) {
+      ;(actions as any)[key] = createAction((actions as any)[key], key + "")
+    }
+    return actions
+  }
+
   return {
-    Provider: generateProvider(Context.Provider, initialValue),
+    Provider: generateProvider(Context.Provider, options),
     useContext: () => React.useContext(Context),
-    createAction: <ActionType extends (...args: any[]) => UpdateAction<State>>(
-      callback: ActionType
-    ): ActionType => callback,
-    createActions: <
-      ActionsType extends { [actionName in T]: ActionType },
-      ActionType extends (...args: any[]) => UpdateAction<State>,
-      T extends keyof ActionType
-    >(
-      actions: ActionsType
-    ): ActionsType => {
-      return actions
-    },
+    createAction,
+    createActions,
   }
 }
